@@ -7,34 +7,40 @@ export type Profile = (AppBskyActorDefs.ProfileViewDetailed | AppBskyActorDefs.P
 	img?: HTMLImageElement;
 };
 
-const rpc = new XRPC({
-	handler: simpleFetchHandler({ service: 'https://api.bsky.app' })
-});
+export class BlueskyClient {
+	private rpc: XRPC;
 
-export const getFollows = async (handle: string, cursor?: string) => {
-	const res = await rpc.get('app.bsky.graph.getFollows', {
-		params: {
-			actor: handle,
-			limit: 100,
-			cursor: cursor
-		}
-	});
-	return res.data;
-};
+	constructor() {
+		this.rpc = new XRPC({
+			handler: simpleFetchHandler({ service: 'https://api.bsky.app' })
+		});
+	}
 
-export const getProfiles = async (handles: string[]) => {
-	const res = await rpc.get('app.bsky.actor.getProfiles', {
-		params: {
-			actors: handles
-		}
-	});
-	return res.data;
-};
+	async getFollows(handle: string, cursor?: string) {
+		const res = await this.rpc.get('app.bsky.graph.getFollows', {
+			params: {
+				actor: handle,
+				limit: 100,
+				cursor: cursor
+			}
+		});
+		return res.data;
+	}
 
-export const prepareNode = (rawNode: Profile): Profile => {
-	const anonUrl =
-		'https://upload.wikimedia.org/wikipedia/commons/thumb/7/7a/Bluesky_Logo.svg/272px-Bluesky_Logo.svg.png';
-	const img = new Image();
-	img.src = rawNode.avatar || anonUrl;
-	return { ...rawNode, id: rawNode.handle, img };
-};
+	async getProfiles(handles: string[]) {
+		const res = await this.rpc.get('app.bsky.actor.getProfiles', {
+			params: {
+				actors: handles
+			}
+		});
+		return res.data;
+	}
+
+	prepareNode(rawNode: Profile): Profile {
+		const anonUrl =
+			'https://upload.wikimedia.org/wikipedia/commons/thumb/7/7a/Bluesky_Logo.svg/272px-Bluesky_Logo.svg.png';
+		const img = new Image();
+		img.src = rawNode.avatar || anonUrl;
+		return { ...rawNode, id: rawNode.handle, img };
+	}
+}
