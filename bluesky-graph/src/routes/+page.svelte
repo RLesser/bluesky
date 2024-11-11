@@ -12,13 +12,13 @@
 	onMount(async () => {
 		const { GraphManager } = await import('$lib/GraphManager');
 		gm = new GraphManager();
-		viewManager = new ViewManager(gm);
+		viewManager = new ViewManager(gm, { imageNodes: false });
 	});
 
 	$effect(() => {
 		if (!gm) return;
 		viewManager.initialize(canvas, w, h);
-		viewManager.addInitialNode('rlesser.bsky.social');
+		viewManager.addFollows('rlesser.bsky.social', { initial: true, all: true });
 	});
 </script>
 

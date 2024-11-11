@@ -31,8 +31,6 @@ export class GraphManager {
 			return true;
 		});
 
-		console.log('Adding nodes:', uniqueNewNodes);
-
 		this.graph.graphData({
 			nodes: [...nodes, ...uniqueNewNodes],
 			links: [...links, ...uniqueNewLinks]
