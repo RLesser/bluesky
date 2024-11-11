@@ -13,7 +13,7 @@
 	onMount(async () => {
 		const { GraphManager } = await import('$lib/GraphManager');
 		gm = new GraphManager();
-		viewManager = new ViewManager(gm, { imageNodes: false });
+		viewManager = new ViewManager(gm, { imageNodes: true });
 	});
 
 	$effect(() => {
