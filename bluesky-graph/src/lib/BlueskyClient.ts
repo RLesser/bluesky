@@ -1,6 +1,6 @@
 import { XRPC, simpleFetchHandler } from '@atcute/client';
 import '@atcute/bluesky/lexicons';
-import type { AppBskyActorDefs } from '@atcute/client/lexicons';
+import type { AppBskyActorDefs, AppBskyGraphGetFollows } from '@atcute/client/lexicons';
 import PQueue from 'p-queue';
 
 export type Profile = (AppBskyActorDefs.ProfileViewDetailed | AppBskyActorDefs.ProfileView) & {
@@ -14,7 +14,7 @@ export class BlueskyClient {
 
 	constructor() {
 		this.rpc = new XRPC({
-			handler: simpleFetchHandler({ service: 'https://api.bsky.app' })
+			handler: simpleFetchHandler({ service: 'https://public.api.bsky.app' })
 		});
 		this.pq = new PQueue({
 			intervalCap: 2,
@@ -23,6 +23,13 @@ export class BlueskyClient {
 	}
 
 	async getFollows(handle: string, cursor?: string) {
+		// TODO: move caching code inside the fetch async block
+		const cacheKey = `getFollows:${handle}:${cursor}`;
+		const cached = localStorage.getItem(cacheKey);
+		if (cached) {
+			console.log('[BC] getFollows (cached)', handle, JSON.parse(cached));
+			return JSON.parse(cached) as AppBskyGraphGetFollows.Output;
+		}
 		const call = this.rpc.get('app.bsky.graph.getFollows', {
 			params: {
 				actor: handle,
@@ -32,6 +39,7 @@ export class BlueskyClient {
 		});
 		const res = await this.pq.add(() => call);
 		console.log('[BC] getFollows', handle, res!.data);
+		localStorage.setItem(cacheKey, JSON.stringify(res!.data));
 		return res!.data;
 	}
 
