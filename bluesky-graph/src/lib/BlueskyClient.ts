@@ -4,7 +4,7 @@ import type { AppBskyActorDefs } from '@atcute/client/lexicons';
 import PQueue from 'p-queue';
 
 export type Profile = (AppBskyActorDefs.ProfileViewDetailed | AppBskyActorDefs.ProfileView) & {
-	id?: string;
+	id?: string | number;
 	img?: HTMLImageElement;
 };
 

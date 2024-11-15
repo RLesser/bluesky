@@ -12,8 +12,12 @@
 
 	onMount(async () => {
 		const { GraphManager } = await import('$lib/GraphManager');
-		gm = new GraphManager();
-		viewManager = new ViewManager(gm, { imageNodes: true });
+		gm = new GraphManager({ bidirectionalOnly: true });
+		viewManager = new ViewManager(gm, { imageNodes: false });
+		// @ts-ignore
+		window.gm = gm;
+		// @ts-ignore
+		window.viewManager = viewManager;
 	});
 
 	$effect(() => {
