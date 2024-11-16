@@ -38,25 +38,31 @@ export class ViewManager {
 		}
 
 		const onNodeClick = async (node: ProfileNode) => {
-			this.addFollows(node.handle, { all: true });
+			this.addFollows(node.handle, { allPages: true });
 		};
 		this.gm.graph.onNodeClick(onNodeClick);
 	}
 
 	addFollows = async (
 		handle: string,
-		options: { cursor?: string; all?: boolean; initial?: boolean } = {}
+		options: { cursor?: string; allPages?: boolean; initialNode?: boolean; fanOut?: number } = {}
 	) => {
-		console.log('[VM] addFollows', handle, options);
+		// console.log('[VM] addFollows', handle, options);
 		const data = await this.bc.getFollows(handle, options.cursor);
 		const nodes = data.follows.map((f) => this.prepareNode(f));
-		if (options.initial) {
+		if (options.initialNode) {
 			nodes.unshift(this.prepareNode(data.subject));
 		}
 		const links = data.follows.map((f) => ({ source: handle, target: f.handle }));
 		this.gm.addToGraph(nodes, links);
-		if (options.all && data.cursor) {
-			this.addFollows(handle, { cursor: data.cursor, all: true });
+		if (options.allPages && data.cursor) {
+			this.addFollows(handle, { cursor: data.cursor, allPages: true });
+		}
+		if (options.fanOut) {
+			const fo = options.fanOut;
+			nodes.forEach((n) => {
+				this.addFollows(n.handle, { allPages: true, fanOut: fo - 1 });
+			});
 		}
 	};
 

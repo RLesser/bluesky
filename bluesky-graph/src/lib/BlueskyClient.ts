@@ -39,7 +39,11 @@ export class BlueskyClient {
 		});
 		const res = await this.pq.add(() => call);
 		console.log('[BC] getFollows', handle, res!.data);
-		localStorage.setItem(cacheKey, JSON.stringify(res!.data));
+		try {
+			localStorage.setItem(cacheKey, JSON.stringify(res!.data));
+		} catch (e) {
+			console.error('localStorage.setItem', e);
+		}
 		return res!.data;
 	}
 

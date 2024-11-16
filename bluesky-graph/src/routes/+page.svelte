@@ -28,7 +28,7 @@
 	function handleSearch(e: SubmitEvent) {
 		e.preventDefault();
 		if (!searchHandle || !viewManager) return;
-		viewManager.addFollows(searchHandle, { initial: true, all: true });
+		viewManager.addFollows(searchHandle, { initialNode: true, allPages: true, fanOut: 1 });
 	}
 </script>
 
