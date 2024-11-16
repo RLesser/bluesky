@@ -2,15 +2,27 @@ import { XRPC, simpleFetchHandler } from '@atcute/client';
 import '@atcute/bluesky/lexicons';
 import type { AppBskyActorDefs, AppBskyGraphGetFollows } from '@atcute/client/lexicons';
 import PQueue from 'p-queue';
+import Dexie, { type EntityTable } from 'dexie';
 
 export type Profile = (AppBskyActorDefs.ProfileViewDetailed | AppBskyActorDefs.ProfileView) & {
 	id?: string | number;
 	img?: HTMLImageElement;
 };
 
+type FollowQueryCache = {
+	key: `${string}:${string}`;
+	handle: string;
+	data: AppBskyGraphGetFollows.Output;
+};
+
+type DexieDB = Dexie & {
+	followQueryCache: EntityTable<FollowQueryCache, 'key'>;
+};
+
 export class BlueskyClient {
 	private rpc: XRPC;
 	private pq: PQueue;
+	private db: DexieDB;
 
 	constructor() {
 		this.rpc = new XRPC({
@@ -20,15 +32,18 @@ export class BlueskyClient {
 			intervalCap: 2,
 			interval: 1000
 		});
+		this.db = new Dexie('bluesky') as DexieDB;
+		this.db.version(1).stores({
+			followQueryCache: 'key, handle'
+		});
 	}
 
 	async getFollows(handle: string, cursor?: string) {
 		// TODO: move caching code inside the fetch async block
-		const cacheKey = `getFollows:${handle}:${cursor}`;
-		const cached = localStorage.getItem(cacheKey);
+		const cached = await this.db.followQueryCache.get(`${handle}:${cursor}`);
 		if (cached) {
-			console.log('[BC] getFollows (cached)', handle, JSON.parse(cached));
-			return JSON.parse(cached) as AppBskyGraphGetFollows.Output;
+			console.log('[BC] getFollows (cached)', handle, cached.data);
+			return cached.data;
 		}
 		const call = this.rpc.get('app.bsky.graph.getFollows', {
 			params: {
@@ -39,11 +54,7 @@ export class BlueskyClient {
 		});
 		const res = await this.pq.add(() => call);
 		console.log('[BC] getFollows', handle, res!.data);
-		try {
-			localStorage.setItem(cacheKey, JSON.stringify(res!.data));
-		} catch (e) {
-			console.error('localStorage.setItem', e);
-		}
+		await this.db.followQueryCache.add({ key: `${handle}:${cursor}`, handle, data: res!.data });
 		return res!.data;
 	}
 
