@@ -1,19 +1,29 @@
 <script lang="ts">
-	import type { GraphManager } from '$lib/GraphManager';
+	import { type ProfileLink, type ProfileNode } from '$lib/GraphManager';
 	import { ViewManager } from '$lib/ViewManager';
 	import { onMount } from 'svelte';
 
-	let gm: null | GraphManager = $state(null);
-	let viewManager: ViewManager;
+	let viewManager: null | ViewManager = $state(null);
 	let canvas: HTMLDivElement;
 	let w: number;
 	let h: number;
 	let searchHandle = '';
 
 	onMount(async () => {
+		const ForceGraph = (await import('force-graph')).default;
+		const { ViewManager } = await import('$lib/ViewManager');
 		const { GraphManager } = await import('$lib/GraphManager');
-		gm = new GraphManager({ bidirectionalOnly: true });
-		viewManager = new ViewManager(gm, { imageNodes: false });
+		const fg = ForceGraph<ProfileNode, ProfileLink>();
+		const gm = new GraphManager(
+			(data) => {
+				console.log('Graph data:', data);
+				fg.graphData(data);
+			},
+			{ bidirectionalOnly: true }
+		);
+		viewManager = new ViewManager(fg, gm, { imageNodes: false });
+		// @ts-ignore
+		window.fg = fg;
 		// @ts-ignore
 		window.gm = gm;
 		// @ts-ignore
@@ -21,7 +31,8 @@
 	});
 
 	$effect(() => {
-		if (!gm) return;
+		if (!viewManager) return;
+		console.log('Initializing view manager');
 		viewManager.initialize(canvas, w, h);
 	});
 

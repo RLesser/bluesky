@@ -1,27 +1,29 @@
-import ForceGraph, { type NodeObject, type LinkObject } from 'force-graph';
+import { type NodeObject, type LinkObject } from 'force-graph';
 import type { Profile } from './BlueskyClient';
 
 export type ProfileNode = Profile & NodeObject;
-type ProfileLink = LinkObject<ProfileNode>;
+export type ProfileLink = LinkObject<ProfileNode>;
 type Id = ProfileNode['id'];
-
 export class GraphManager {
 	nodeMap;
 	linkMap;
-	graph;
 	options: { bidirectionalOnly?: boolean };
+	updateFn: (data: { nodes: ProfileNode[]; links: ProfileLink[] }) => void;
 
-	constructor(options: { bidirectionalOnly?: boolean } = {}) {
+	constructor(
+		updateFn: (data: { nodes: ProfileNode[]; links: ProfileLink[] }) => void,
+		options: { bidirectionalOnly?: boolean } = {}
+	) {
 		this.nodeMap = new Map<Id, ProfileNode>();
 		this.linkMap = new Map<Id, Map<Id, ProfileLink>>();
-		this.graph = ForceGraph<ProfileNode, ProfileLink>();
 		this.options = options;
+		this.updateFn = updateFn;
 	}
 
 	updateOptions = (options: { bidirectionalOnly?: boolean }) => {
 		this.options = options;
 		const { nodes, links } = this.fullGraphData();
-		this.renderGraph(nodes, links);
+		this.updateGraph(nodes, links);
 	};
 
 	addToGraph = (newNodes: ProfileNode[], newLinks: ProfileLink[] = []) => {
@@ -53,7 +55,7 @@ export class GraphManager {
 			return false;
 		});
 
-		this.renderGraph([...nodes, ...uniqueNewNodes], [...links, ...uniqueNewLinks]);
+		this.updateGraph([...nodes, ...uniqueNewNodes], [...links, ...uniqueNewLinks]);
 	};
 
 	removeFromGraph = (nodeIds: Id[], linkIdPairs: [source: Id, target: Id][] = []) => {
@@ -83,11 +85,11 @@ export class GraphManager {
 			return true;
 		});
 
-		this.renderGraph(remainingNodes, remainingLinks);
+		this.updateGraph(remainingNodes, remainingLinks);
 	};
 
-	// Renders the graph with updated data
-	private renderGraph = (nodes: ProfileNode[], links: ProfileLink[]) => {
+	// Calls the update function with the current graph data
+	private updateGraph = (nodes: ProfileNode[], links: ProfileLink[]) => {
 		const { bidirectionalOnly } = this.options;
 
 		// Filter graph data if bidirectionalOnly option is set
@@ -95,10 +97,7 @@ export class GraphManager {
 			? this.filterBidirectional(nodes, links)
 			: { nodes, links };
 
-		this.graph.graphData({
-			nodes: filteredNodes,
-			links: filteredLinks
-		});
+		this.updateFn({ nodes: filteredNodes, links: filteredLinks });
 	};
 
 	// Filters the full graph data to only include bidirectional links and their nodes

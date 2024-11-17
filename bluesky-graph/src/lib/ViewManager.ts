@@ -1,23 +1,30 @@
 import { BlueskyClient, type Profile } from './BlueskyClient';
-import type { GraphManager, ProfileNode } from './GraphManager';
+import type { GraphManager, ProfileNode, ProfileLink } from './GraphManager';
+import type { ForceGraphInstance } from 'force-graph';
 
 type VMOptions = { imageNodes?: boolean };
 
 export class ViewManager {
+	fg: ForceGraphInstance<ProfileNode, ProfileLink>;
 	gm: GraphManager;
 	bc: BlueskyClient;
 	options: VMOptions;
 
-	constructor(gm: GraphManager, options: VMOptions = { imageNodes: false }) {
+	constructor(
+		fg: ForceGraphInstance<ProfileNode, ProfileLink>,
+		gm: GraphManager,
+		options: VMOptions = { imageNodes: false }
+	) {
+		this.fg = fg;
 		this.gm = gm;
 		this.bc = new BlueskyClient();
 		this.options = options;
 	}
 
 	initialize(canvas: HTMLDivElement, width: number, height: number) {
-		this.gm.graph(canvas).width(width).height(height).zoomToFit(1000);
+		this.fg(canvas).width(width).height(height).zoomToFit(1000);
 		if (this.options.imageNodes) {
-			this.gm.graph
+			this.fg
 				.nodeCanvasObject(({ img, x, y }, ctx) => {
 					const size = 12;
 					if (!img || x === undefined || y === undefined) {
@@ -40,7 +47,7 @@ export class ViewManager {
 		const onNodeClick = async (node: ProfileNode) => {
 			this.addFollows(node.handle, { allPages: true });
 		};
-		this.gm.graph.onNodeClick(onNodeClick);
+		this.fg.onNodeClick(onNodeClick);
 	}
 
 	addFollows = async (
