@@ -3,6 +3,7 @@ import type { Profile } from './BlueskyClient';
 
 export type ProfileNode = Profile & NodeObject;
 type ProfileLink = LinkObject<ProfileNode>;
+type Id = ProfileNode['id'];
 
 export class GraphManager {
 	nodeMap;
@@ -11,8 +12,8 @@ export class GraphManager {
 	options: { bidirectionalOnly?: boolean };
 
 	constructor(options: { bidirectionalOnly?: boolean } = {}) {
-		this.nodeMap = new Map<ProfileNode['id'], ProfileNode>();
-		this.linkMap = new Map<string, ProfileLink>();
+		this.nodeMap = new Map<Id, ProfileNode>();
+		this.linkMap = new Map<Id, Map<Id, ProfileLink>>();
 		this.graph = ForceGraph<ProfileNode, ProfileLink>();
 		this.options = options;
 	}
@@ -34,16 +35,28 @@ export class GraphManager {
 		});
 
 		const uniqueNewLinks = newLinks.filter((link) => {
-			const linkKey = `${link.source}-${link.target}`;
-			if (this.linkMap.has(linkKey)) return false;
-			this.linkMap.set(linkKey, link);
-			return true;
+			const source = this.getId(link.source);
+			const target = this.getId(link.target);
+			// Ensure source and target exist
+			if (!source || !target) return false;
+			const sourceMap = this.linkMap.get(source);
+			// first time seeing this source
+			if (!sourceMap) {
+				this.linkMap.set(source, new Map().set(target, link));
+				return true;
+			}
+			// first time seeing this target
+			if (!sourceMap.has(target)) {
+				sourceMap.set(target, link);
+				return true;
+			}
+			return false;
 		});
 
 		this.renderGraph([...nodes, ...uniqueNewNodes], [...links, ...uniqueNewLinks]);
 	};
 
-	removeFromGraph = (nodeIds: ProfileNode['id'][], linkKeys: string[] = []) => {
+	removeFromGraph = (nodeIds: Id[], linkIdPairs: [source: Id, target: Id][] = []) => {
 		const { nodes, links } = this.fullGraphData();
 
 		// Remove nodes from Set and filter nodes array
@@ -52,17 +65,18 @@ export class GraphManager {
 
 		// Remove specified links and any links connected to removed nodes
 		const remainingLinks = links.filter((link) => {
-			const linkKey = `${link.source}-${link.target}`;
+			const linkSource = this.getId(link.source);
+			const linkTarget = this.getId(link.target);
 
-			// Remove if link is in linkKeys to remove
-			if (linkKeys.includes(linkKey)) {
-				this.linkMap.delete(linkKey);
+			// Remove if link is in linkIdPairs to remove
+			if (linkIdPairs.some(([source, target]) => linkSource === source && linkTarget === target)) {
+				this.linkMap.get(linkSource)?.delete(linkTarget);
 				return false;
 			}
 
 			// Remove if either endpoint is in removed nodes
-			if (nodeIds.includes(this.getId(link.source)) || nodeIds.includes(this.getId(link.target))) {
-				this.linkMap.delete(linkKey);
+			if (nodeIds.includes(linkSource) || nodeIds.includes(linkTarget)) {
+				this.linkMap.get(linkSource)?.delete(linkTarget);
 				return false;
 			}
 
@@ -93,14 +107,16 @@ export class GraphManager {
 		links: ProfileLink[]
 	): { nodes: ProfileNode[]; links: ProfileLink[] } => {
 		const bidirectionalLinks = links.filter((link) => {
-			const isMutual = this.isMutualLink(link.source, link.target);
+			const isMutual = this.isMutualLink(this.getId(link.source), this.getId(link.target));
 			return isMutual;
 		});
 
+		const bidirectionalNodeIds = new Set(
+			bidirectionalLinks.flatMap((link) => [this.getId(link.source), this.getId(link.target)])
+		);
+
 		const bidirectionalNodes = nodes.filter((node) => {
-			const hasMutualLink = bidirectionalLinks.some((link) => {
-				return this.getId(link.source) === node.id || this.getId(link.target) === node.id;
-			});
+			const hasMutualLink = bidirectionalNodeIds.has(node.id || '');
 			return hasMutualLink;
 		});
 
@@ -112,36 +128,37 @@ export class GraphManager {
 	};
 
 	// Utility method to check if node exists
-	hasNode = (nodeId: ProfileNode['id']) => {
+	hasNode = (nodeId: Id) => {
 		return this.nodeMap.has(nodeId);
 	};
 
 	// Utility method to check if link exists
-	hasLink = (source: ProfileNode['id'] | ProfileNode, target: ProfileNode['id'] | ProfileNode) => {
-		return this.linkMap.has(`${this.getId(source)}-${this.getId(target)}`);
+	hasLink = (source: Id, target: Id) => {
+		const sourceMap = this.linkMap.get(source);
+		if (!sourceMap) return false;
+		return sourceMap.has(target);
 	};
 
 	// Utility method to see if a link is mutual
-	isMutualLink = (
-		source: ProfileNode['id'] | ProfileNode,
-		target: ProfileNode['id'] | ProfileNode
-	) => {
+	isMutualLink = (source: Id, target: Id) => {
 		return (
 			this.hasLink(source, target) &&
 			this.hasLink(target, source) &&
 			// Ensure only one link per pair
-			this.getId(source) > this.getId(target)
+			(source || '') > (target || '')
 		);
 	};
 
-	private getId = (linkSource: ProfileNode['id'] | ProfileNode) => {
+	private getId = (linkSource: Id | ProfileNode) => {
 		return (typeof linkSource === 'object' ? linkSource.id : linkSource) || '';
 	};
 
 	// Returns the full graph data, regardless of what is currently rendered
 	fullGraphData = () => {
 		const nodes = Array.from(this.nodeMap.values());
-		const links = Array.from(this.linkMap.values());
+		const links = Array.from(this.linkMap.values()).flatMap((linkMap) =>
+			Array.from(linkMap.values())
+		);
 		return { nodes, links };
 	};
 }

@@ -56,12 +56,12 @@ export class ViewManager {
 		const links = data.follows.map((f) => ({ source: handle, target: f.handle }));
 		this.gm.addToGraph(nodes, links);
 		if (options.allPages && data.cursor) {
-			this.addFollows(handle, { cursor: data.cursor, allPages: true });
+			await this.addFollows(handle, { cursor: data.cursor, allPages: true });
 		}
 		if (options.fanOut) {
 			const fo = options.fanOut;
-			nodes.forEach((n) => {
-				this.addFollows(n.handle, { allPages: true, fanOut: fo - 1 });
+			nodes.forEach(async (n) => {
+				await this.addFollows(n.handle, { allPages: true, fanOut: fo - 1 });
 			});
 		}
 	};
