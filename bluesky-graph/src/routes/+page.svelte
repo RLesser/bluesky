@@ -8,31 +8,26 @@
 	let w: number;
 	let h: number;
 	let searchHandle = '';
+	let graphWorker: Worker;
 
 	onMount(async () => {
+		graphWorker = new Worker(new URL('$lib/workers/graph-worker.ts', import.meta.url), {
+			type: 'module'
+		});
+
 		const ForceGraph = (await import('force-graph')).default;
 		const { ViewManager } = await import('$lib/ViewManager');
-		const { GraphManager } = await import('$lib/GraphManager');
 		const fg = ForceGraph<ProfileNode, ProfileLink>();
-		const gm = new GraphManager(
-			(data) => {
-				console.log('Graph data:', data);
-				fg.graphData(data);
-			},
-			{ bidirectionalOnly: true }
-		);
-		viewManager = new ViewManager(fg, gm, { imageNodes: false });
+		viewManager = new ViewManager(fg, graphWorker, { imageNodes: false });
+
 		// @ts-ignore
 		window.fg = fg;
 		// @ts-ignore
-		window.gm = gm;
-		// @ts-ignore
-		window.viewManager = viewManager;
+		window.vm = viewManager;
 	});
 
 	$effect(() => {
 		if (!viewManager) return;
-		console.log('Initializing view manager');
 		viewManager.initialize(canvas, w, h);
 	});
 

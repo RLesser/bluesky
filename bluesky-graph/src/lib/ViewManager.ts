@@ -1,22 +1,22 @@
 import { BlueskyClient, type Profile } from './BlueskyClient';
-import type { GraphManager, ProfileNode, ProfileLink } from './GraphManager';
+import type { ProfileNode, ProfileLink } from './GraphManager';
 import type { ForceGraphInstance } from 'force-graph';
 
 type VMOptions = { imageNodes?: boolean };
 
 export class ViewManager {
 	fg: ForceGraphInstance<ProfileNode, ProfileLink>;
-	gm: GraphManager;
+	graphWorker: Worker;
 	bc: BlueskyClient;
 	options: VMOptions;
 
 	constructor(
 		fg: ForceGraphInstance<ProfileNode, ProfileLink>,
-		gm: GraphManager,
+		graphWorker: Worker,
 		options: VMOptions = { imageNodes: false }
 	) {
 		this.fg = fg;
-		this.gm = gm;
+		this.graphWorker = graphWorker;
 		this.bc = new BlueskyClient();
 		this.options = options;
 	}
@@ -48,6 +48,12 @@ export class ViewManager {
 			this.addFollows(node.handle, { allPages: true });
 		};
 		this.fg.onNodeClick(onNodeClick);
+
+		this.graphWorker.onmessage = (e) => {
+			const { nodes, links } = e.data;
+			this.fg.graphData({ nodes, links });
+		};
+		this.graphWorker.postMessage({ type: 'init', bidirectionalOnly: true });
 	}
 
 	addFollows = async (
@@ -61,7 +67,8 @@ export class ViewManager {
 			nodes.unshift(this.prepareNode(data.subject));
 		}
 		const links = data.follows.map((f) => ({ source: handle, target: f.handle }));
-		this.gm.addToGraph(nodes, links);
+		// add nodes to the graph through the worker
+		this.graphWorker.postMessage({ type: 'addNodes', nodes, links });
 		if (options.allPages && data.cursor) {
 			await this.addFollows(handle, { cursor: data.cursor, allPages: true });
 		}

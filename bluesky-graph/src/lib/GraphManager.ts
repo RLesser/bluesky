@@ -1,5 +1,21 @@
-import { type NodeObject, type LinkObject } from 'force-graph';
 import type { Profile } from './BlueskyClient';
+
+// Pulled from force-graph.d.ts - direct import causes issues due to "window" usage
+interface NodeObject {
+	id?: string | number;
+	index?: number;
+	x?: number;
+	y?: number;
+	vx?: number;
+	vy?: number;
+	fx?: number;
+	fy?: number;
+}
+
+interface LinkObject<N = NodeObject> {
+	source?: string | number | N;
+	target?: string | number | N;
+}
 
 export type ProfileNode = Profile & NodeObject;
 export type ProfileLink = LinkObject<ProfileNode>;
