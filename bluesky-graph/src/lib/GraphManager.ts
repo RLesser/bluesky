@@ -38,74 +38,63 @@ export class GraphManager {
 
 	updateOptions = (options: { bidirectionalOnly?: boolean }) => {
 		this.options = options;
-		const { nodes, links } = this.fullGraphData();
-		this.updateGraph(nodes, links);
+		this.updateGraph();
 	};
 
 	addToGraph = (newNodes: ProfileNode[], newLinks: ProfileLink[] = []) => {
-		const { nodes, links } = this.fullGraphData();
-
-		// Filter using maintained Sets
-		const uniqueNewNodes = newNodes.filter((node) => {
-			if (this.nodeMap.has(node.id)) return false;
+		newNodes.forEach((node) => {
+			if (this.nodeMap.has(node.id)) return;
 			this.nodeMap.set(node.id, node);
-			return true;
 		});
 
-		const uniqueNewLinks = newLinks.filter((link) => {
+		newLinks.forEach((link) => {
 			const source = this.getId(link.source);
 			const target = this.getId(link.target);
 			// Ensure source and target exist
-			if (!source || !target) return false;
+			if (!source || !target) return;
 			const sourceMap = this.linkMap.get(source);
 			// first time seeing this source
 			if (!sourceMap) {
 				this.linkMap.set(source, new Map().set(target, link));
-				return true;
-			}
-			// first time seeing this target
-			if (!sourceMap.has(target)) {
+			} else if (!sourceMap.has(target)) {
+				// first time seeing this target
 				sourceMap.set(target, link);
-				return true;
 			}
-			return false;
 		});
 
-		this.updateGraph([...nodes, ...uniqueNewNodes], [...links, ...uniqueNewLinks]);
+		this.updateGraph();
 	};
 
 	removeFromGraph = (nodeIds: Id[], linkIdPairs: [source: Id, target: Id][] = []) => {
-		const { nodes, links } = this.fullGraphData();
-
 		// Remove nodes from Set and filter nodes array
 		nodeIds.forEach((id) => this.nodeMap.delete(id));
-		const remainingNodes = nodes.filter((node) => !nodeIds.includes(node.id || ''));
 
-		// Remove specified links and any links connected to removed nodes
-		const remainingLinks = links.filter((link) => {
-			const linkSource = this.getId(link.source);
-			const linkTarget = this.getId(link.target);
-
-			// Remove if link is in linkIdPairs to remove
-			if (linkIdPairs.some(([source, target]) => linkSource === source && linkTarget === target)) {
-				this.linkMap.get(linkSource)?.delete(linkTarget);
-				return false;
+		// Remove links connected to removed nodes
+		this.linkMap.forEach((sourceMap, key) => {
+			if (nodeIds.includes(key)) {
+				this.linkMap.delete(key);
+				return;
 			}
 
-			// Remove if either endpoint is in removed nodes
-			if (nodeIds.includes(linkSource) || nodeIds.includes(linkTarget)) {
-				this.linkMap.get(linkSource)?.delete(linkTarget);
-				return false;
-			}
-
-			return true;
+			nodeIds.forEach((id) => {
+				sourceMap.delete(id);
+			});
 		});
 
-		this.updateGraph(remainingNodes, remainingLinks);
+		// Remove specified links
+		linkIdPairs.forEach(([source, target]) => {
+			const sourceMap = this.linkMap.get(source);
+			if (sourceMap) {
+				sourceMap.delete(target);
+			}
+		});
+
+		this.updateGraph();
 	};
 
 	// Calls the update function with the current graph data
-	private updateGraph = (nodes: ProfileNode[], links: ProfileLink[]) => {
+	private updateGraph = () => {
+		const { nodes, links } = this.fullGraphData();
 		const { bidirectionalOnly } = this.options;
 
 		// Filter graph data if bidirectionalOnly option is set
