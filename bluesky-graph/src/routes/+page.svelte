@@ -10,6 +10,7 @@
 	let h: number;
 	let searchHandle = '';
 	let graphWorker: Worker;
+	let hoverNode: null | ProfileNode = $state(null);
 
 	const setAvatarImages = (images: { handle: string; url: string }[]) => {
 		avatarImages = images;
@@ -20,10 +21,20 @@
 			type: 'module'
 		});
 
-		const ForceGraph = (await import('force-graph')).default;
+		const ForceGraphModule = await import('force-graph');
+		const ForceGraph = ForceGraphModule.default;
 		const { ViewManager } = await import('$lib/ViewManager');
 		const fg = ForceGraph<ProfileNode, ProfileLink>();
 		viewManager = new ViewManager(fg, graphWorker, setAvatarImages, { imageNodes: true });
+
+		fg.onNodeHover((node) => {
+			if (!node) {
+				hoverNode = null;
+				return;
+			}
+			const { x, y } = fg.graph2ScreenCoords(node.x || 0, node.y || 0);
+			hoverNode = { ...node, x, y };
+		});
 
 		// @ts-ignore
 		window.fg = fg;
@@ -36,7 +47,7 @@
 		viewManager.initialize(canvas, w, h);
 	});
 
-	$inspect(avatarImages);
+	$inspect(hoverNode);
 
 	function handleSearch(e: SubmitEvent) {
 		e.preventDefault();
@@ -63,7 +74,29 @@
 			</form>
 		</div>
 	</div>
-	<div class="invisible">
+	<!-- tooltip -->
+	{#if hoverNode}
+		<div
+			class="pointer-events-none absolute -mt-16 rounded bg-white/80 p-2"
+			style="top: {hoverNode.y || 0}px; left: {hoverNode.x}px; transform: translateX(-50%);"
+		>
+			<div class="flex items-center gap-2">
+				<img
+					src={hoverNode.avatar || ANON_AVATAR_URL}
+					alt={hoverNode.handle}
+					class="h-8 w-8 rounded-full"
+					onerror={(e) => {
+						const img = e.target as HTMLImageElement;
+						img.src = ANON_AVATAR_URL;
+						img.onerror = null;
+					}}
+				/>
+				<div>{hoverNode.handle}</div>
+			</div>
+		</div>
+	{/if}
+	<!-- avatar images (hidden) -->
+	<div class="invisible h-0 w-0 overflow-hidden">
 		{#each avatarImages as avatarImage (avatarImage.handle)}
 			<img
 				id={avatarImage.handle}
