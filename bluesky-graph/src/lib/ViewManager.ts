@@ -9,6 +9,7 @@ export class ViewManager {
 	graphWorker: Worker;
 	bc: BlueskyClient;
 	options: VMOptions;
+	nodeMap: Map<ProfileNode['id'], ProfileNode> = new Map<ProfileNode['id'], ProfileNode>();
 
 	constructor(
 		fg: ForceGraphInstance<ProfileNode, ProfileLink>,
@@ -22,7 +23,7 @@ export class ViewManager {
 	}
 
 	initialize(canvas: HTMLDivElement, width: number, height: number) {
-		this.fg(canvas).width(width).height(height).zoomToFit(1000);
+		this.fg(canvas).width(width).height(height);
 		if (this.options.imageNodes) {
 			this.fg
 				.nodeCanvasObject(({ img, x, y }, ctx) => {
@@ -50,8 +51,16 @@ export class ViewManager {
 		this.fg.onNodeClick(onNodeClick);
 
 		this.graphWorker.onmessage = (e) => {
-			const { nodes, links } = e.data;
-			this.fg.graphData({ nodes, links });
+			const { nodes: nodesIn, links: linksIn } = e.data;
+			const { nodes: nodesCurrent, links: linksCurrent } = this.fg.graphData();
+			// dont update if the graph is unchanged
+			if (nodesIn.length === nodesCurrent.length && linksIn.length === linksCurrent.length) return;
+			nodesIn.forEach((node: ProfileNode) => {
+				if (this.nodeMap.has(node.id)) return;
+				this.nodeMap.set(node.id, node);
+			});
+			const nodes = Array.from(this.nodeMap.values());
+			this.fg.graphData({ nodes, links: linksIn });
 		};
 		this.graphWorker.postMessage({ type: 'init', bidirectionalOnly: true });
 	}
@@ -60,12 +69,12 @@ export class ViewManager {
 		handle: string,
 		options: { cursor?: string; allPages?: boolean; initialNode?: boolean; fanOut?: number } = {}
 	) => {
-		// console.log('[VM] addFollows', handle, options);
 		const data = await this.bc.getFollows(handle, options.cursor);
-		const nodes = data.follows.map((f) => this.prepareNode(f));
+		const nodes = data.follows;
 		if (options.initialNode) {
-			nodes.unshift(this.prepareNode(data.subject));
+			nodes.unshift(data.subject);
 		}
+		nodes.forEach((n) => ({ ...n, id: n.handle }));
 		const links = data.follows.map((f) => ({ source: handle, target: f.handle }));
 		// add nodes to the graph through the worker
 		this.graphWorker.postMessage({ type: 'addNodes', nodes, links });
