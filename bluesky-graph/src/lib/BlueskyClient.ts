@@ -29,8 +29,8 @@ export class BlueskyClient {
 			handler: simpleFetchHandler({ service: 'https://public.api.bsky.app' })
 		});
 		this.pq = new PQueue({
-			intervalCap: 2,
-			interval: 1000
+			intervalCap: 1,
+			interval: 200
 		});
 		this.db = new Dexie('bluesky') as DexieDB;
 		this.db.version(1).stores({
