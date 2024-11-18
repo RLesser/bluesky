@@ -1,8 +1,11 @@
-import { BlueskyClient, type Profile } from './BlueskyClient';
+import { BlueskyClient } from './BlueskyClient';
 import type { ProfileNode, ProfileLink } from './GraphManager';
 import type { ForceGraphInstance } from 'force-graph';
 
 type VMOptions = { imageNodes?: boolean };
+
+export const ANON_AVATAR_URL =
+	'https://upload.wikimedia.org/wikipedia/commons/thumb/7/7a/Bluesky_Logo.svg/272px-Bluesky_Logo.svg.png';
 
 export class ViewManager {
 	fg: ForceGraphInstance<ProfileNode, ProfileLink>;
@@ -10,15 +13,18 @@ export class ViewManager {
 	bc: BlueskyClient;
 	options: VMOptions;
 	nodeMap: Map<ProfileNode['id'], ProfileNode> = new Map<ProfileNode['id'], ProfileNode>();
+	setAvatarImages: (arg: { handle: string; url: string }[]) => void;
 
 	constructor(
 		fg: ForceGraphInstance<ProfileNode, ProfileLink>,
 		graphWorker: Worker,
+		setAvatarImages: (arg: { handle: string; url: string }[]) => void,
 		options: VMOptions = { imageNodes: false }
 	) {
 		this.fg = fg;
 		this.graphWorker = graphWorker;
 		this.bc = new BlueskyClient();
+		this.setAvatarImages = setAvatarImages;
 		this.options = options;
 	}
 
@@ -26,10 +32,15 @@ export class ViewManager {
 		this.fg(canvas).width(width).height(height);
 		if (this.options.imageNodes) {
 			this.fg
-				.nodeCanvasObject(({ img, x, y }, ctx) => {
+				.nodeCanvasObject(({ handle, x, y }, ctx) => {
 					const size = 12;
-					if (!img || x === undefined || y === undefined) {
-						console.warn('nodeCanvasObject: missing img, x, or y', img, x, y);
+					if (x === undefined || y === undefined) {
+						console.warn('nodeCanvasObject: missing x or y', x, y);
+						return;
+					}
+					const img = document.getElementById(handle) as HTMLImageElement;
+					if (img === null) {
+						console.warn('nodeCanvasObject: missing image', handle);
 						return;
 					}
 					ctx.drawImage(img, x - size / 2, y - size / 2, size, size);
@@ -60,6 +71,9 @@ export class ViewManager {
 				this.nodeMap.set(node.id, node);
 			});
 			const nodes = Array.from(this.nodeMap.values());
+			this.setAvatarImages(
+				nodes.map((n) => ({ handle: n.handle, url: n.avatar || ANON_AVATAR_URL }))
+			);
 			this.fg.graphData({ nodes, links: linksIn });
 		};
 		this.graphWorker.postMessage({ type: 'init', bidirectionalOnly: true });
@@ -70,11 +84,10 @@ export class ViewManager {
 		options: { cursor?: string; allPages?: boolean; initialNode?: boolean; fanOut?: number } = {}
 	) => {
 		const data = await this.bc.getFollows(handle, options.cursor);
-		const nodes = data.follows;
+		const nodes = data.follows.map((n) => ({ ...n, id: n.handle }));
 		if (options.initialNode) {
-			nodes.unshift(data.subject);
+			nodes.unshift({ ...data.subject, id: data.subject.handle });
 		}
-		nodes.forEach((n) => ({ ...n, id: n.handle }));
 		const links = data.follows.map((f) => ({ source: handle, target: f.handle }));
 		// add nodes to the graph through the worker
 		this.graphWorker.postMessage({ type: 'addNodes', nodes, links });
@@ -88,17 +101,4 @@ export class ViewManager {
 			});
 		}
 	};
-
-	private prepareNode(rawNode: Profile): Profile {
-		let img;
-		if (this.options.imageNodes) {
-			const anonUrl =
-				'https://upload.wikimedia.org/wikipedia/commons/thumb/7/7a/Bluesky_Logo.svg/272px-Bluesky_Logo.svg.png';
-			img = new Image();
-			img.src = rawNode.avatar || anonUrl;
-		} else {
-			img = undefined;
-		}
-		return { ...rawNode, id: rawNode.handle, img };
-	}
 }

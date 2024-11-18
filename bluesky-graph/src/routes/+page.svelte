@@ -1,14 +1,19 @@
 <script lang="ts">
 	import { type ProfileLink, type ProfileNode } from '$lib/GraphManager';
-	import { ViewManager } from '$lib/ViewManager';
+	import { ANON_AVATAR_URL, ViewManager } from '$lib/ViewManager';
 	import { onMount } from 'svelte';
 
 	let viewManager: null | ViewManager = $state(null);
+	let avatarImages: { handle: string; url: string }[] = $state([]);
 	let canvas: HTMLDivElement;
 	let w: number;
 	let h: number;
 	let searchHandle = '';
 	let graphWorker: Worker;
+
+	const setAvatarImages = (images: { handle: string; url: string }[]) => {
+		avatarImages = images;
+	};
 
 	onMount(async () => {
 		graphWorker = new Worker(new URL('$lib/workers/graph-worker.ts', import.meta.url), {
@@ -18,7 +23,7 @@
 		const ForceGraph = (await import('force-graph')).default;
 		const { ViewManager } = await import('$lib/ViewManager');
 		const fg = ForceGraph<ProfileNode, ProfileLink>();
-		viewManager = new ViewManager(fg, graphWorker, { imageNodes: false });
+		viewManager = new ViewManager(fg, graphWorker, setAvatarImages, { imageNodes: true });
 
 		// @ts-ignore
 		window.fg = fg;
@@ -30,6 +35,8 @@
 		if (!viewManager) return;
 		viewManager.initialize(canvas, w, h);
 	});
+
+	$inspect(avatarImages);
 
 	function handleSearch(e: SubmitEvent) {
 		e.preventDefault();
@@ -55,5 +62,20 @@
 				<button type="submit" class="rounded bg-blue-500 px-3 py-1 text-white">Search</button>
 			</form>
 		</div>
+	</div>
+	<div class="invisible">
+		{#each avatarImages as avatarImage (avatarImage.handle)}
+			<img
+				id={avatarImage.handle}
+				src={avatarImage.url}
+				alt={avatarImage.handle}
+				class="h-8 w-8 rounded-full"
+				onerror={(e) => {
+					const img = e.target as HTMLImageElement;
+					img.src = ANON_AVATAR_URL;
+					img.onerror = null;
+				}}
+			/>
+		{/each}
 	</div>
 </div>
