@@ -52,7 +52,12 @@
 	function handleSearch(e: SubmitEvent) {
 		e.preventDefault();
 		if (!searchHandle || !viewManager) return;
-		viewManager.addFollows(searchHandle, { initialNode: true, allPages: true, fanOut: 1 });
+		viewManager.addFollows(searchHandle, {
+			initialNode: true,
+			allPages: true,
+			fanOut: 1,
+			debug: true
+		});
 	}
 </script>
 

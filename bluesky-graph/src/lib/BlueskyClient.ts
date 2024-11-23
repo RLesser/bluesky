@@ -30,7 +30,8 @@ export class BlueskyClient {
 		});
 		this.pq = new PQueue({
 			intervalCap: 1,
-			interval: 200
+			interval: 200,
+			concurrency: 1
 		});
 		this.db = new Dexie('bluesky') as DexieDB;
 		this.db.version(1).stores({
@@ -42,7 +43,7 @@ export class BlueskyClient {
 		// TODO: move caching code inside the fetch async block
 		const cached = await this.db.followQueryCache.get(`${handle}:${cursor}`);
 		if (cached) {
-			console.log('[BC] getFollows (cached)', handle, cached.data);
+			// console.log('[BC] getFollows (cached)', handle, cached.data);
 			return cached.data;
 		}
 		const call = this.rpc.get('app.bsky.graph.getFollows', {
@@ -53,7 +54,7 @@ export class BlueskyClient {
 			}
 		});
 		const res = await this.pq.add(() => call);
-		console.log('[BC] getFollows', handle, res!.data);
+		// console.log('[BC] getFollows', handle, res!.data);
 		await this.db.followQueryCache.add({ key: `${handle}:${cursor}`, handle, data: res!.data });
 		return res!.data;
 	}

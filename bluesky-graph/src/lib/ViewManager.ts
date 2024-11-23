@@ -29,7 +29,7 @@ export class ViewManager {
 	}
 
 	initialize(canvas: HTMLDivElement, width: number, height: number) {
-		this.fg(canvas).width(width).height(height);
+		this.fg(canvas).width(width).height(height).d3AlphaDecay(0);
 		if (this.options.imageNodes) {
 			this.fg
 				.nodeCanvasObject(({ handle, x, y }, ctx) => {
@@ -81,24 +81,51 @@ export class ViewManager {
 
 	addFollows = async (
 		handle: string,
-		options: { cursor?: string; allPages?: boolean; initialNode?: boolean; fanOut?: number } = {}
+		options: {
+			cursor?: string;
+			allPages?: boolean;
+			initialNode?: boolean;
+			fanOut?: number;
+			debug?: true | { path: string; page: number };
+		} = {}
 	) => {
+		let debug: { path: string; page: number } | undefined;
+		if (options.debug) {
+			if (options.debug === true) {
+				debug = { path: handle + '-' + 1, page: 1 };
+			} else {
+				debug = options.debug;
+			}
+			console.log(`[VM] debug ${debug.path}`);
+		}
 		const data = await this.bc.getFollows(handle, options.cursor);
 		const nodes = data.follows.map((n) => ({ ...n, id: n.handle }));
-		if (options.initialNode) {
-			nodes.unshift({ ...data.subject, id: data.subject.handle });
-		}
 		const links = data.follows.map((f) => ({ source: handle, target: f.handle }));
 		// add nodes to the graph through the worker
-		this.graphWorker.postMessage({ type: 'addNodes', nodes, links });
+		const nodesToGraph = options.initialNode
+			? [{ ...data.subject, id: data.subject.handle }, ...nodes]
+			: nodes;
+		this.graphWorker.postMessage({ type: 'addNodes', nodes: nodesToGraph, links });
 		if (options.allPages && data.cursor) {
-			await this.addFollows(handle, { cursor: data.cursor, allPages: true });
+			this.addFollows(handle, {
+				cursor: data.cursor,
+				allPages: true,
+				fanOut: options.fanOut,
+				debug: debug
+					? { path: [debug.path, debug.page + 1].join('-'), page: debug.page + 1 }
+					: undefined
+			});
 		}
 		if (options.fanOut) {
-			const fo = options.fanOut;
-			nodes.forEach(async (n) => {
-				await this.addFollows(n.handle, { allPages: true, fanOut: fo - 1 });
-			});
+			for (let i = 0; i < nodes.length; i++) {
+				await this.addFollows(nodes[i].handle, {
+					allPages: true,
+					fanOut: options.fanOut - 1,
+					debug: debug
+						? { path: [debug.path, nodes[i].handle + '-1'].join('|'), page: 1 }
+						: undefined
+				});
+			}
 		}
 	};
 }
