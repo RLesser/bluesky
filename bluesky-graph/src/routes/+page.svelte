@@ -2,13 +2,13 @@
 	import { type ProfileLink, type ProfileNode } from '$lib/GraphManager';
 	import { ANON_AVATAR_URL, ViewManager } from '$lib/ViewManager';
 	import { onMount } from 'svelte';
+	import Search from '$lib/components/Search.svelte';
 
 	let viewManager: null | ViewManager = $state(null);
 	let avatarImages: { handle: string; url: string }[] = $state([]);
 	let canvas: HTMLDivElement;
 	let w: number;
 	let h: number;
-	let searchHandle = '';
 	let graphWorker: Worker;
 	let hoverNode: null | ProfileNode = $state(null);
 
@@ -48,17 +48,6 @@
 	});
 
 	$inspect(hoverNode);
-
-	function handleSearch(e: SubmitEvent) {
-		e.preventDefault();
-		if (!searchHandle || !viewManager) return;
-		viewManager.addFollows(searchHandle, {
-			initialNode: true,
-			allPages: true,
-			fanOut: 1,
-			debug: true
-		});
-	}
 </script>
 
 <div class="h-screen w-screen" bind:clientWidth={w} bind:clientHeight={h}>
@@ -68,15 +57,7 @@
 		<!-- top bar -->
 		<div class="pointer-events-auto flex items-center gap-4 bg-white/80 p-4">
 			<div class="font-mono text-xl">Bluesky Graph</div>
-			<form onsubmit={handleSearch} class="flex gap-2">
-				<input
-					type="text"
-					bind:value={searchHandle}
-					placeholder="Enter account handle"
-					class="rounded border px-2 py-1"
-				/>
-				<button type="submit" class="rounded bg-blue-500 px-3 py-1 text-white">Search</button>
-			</form>
+			<Search {viewManager} />
 		</div>
 	</div>
 	<!-- tooltip -->
