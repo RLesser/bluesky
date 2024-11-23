@@ -39,11 +39,11 @@ export class ViewManager {
 						return;
 					}
 					const img = document.getElementById(handle) as HTMLImageElement;
-					if (img === null) {
-						console.warn('nodeCanvasObject: missing image', handle);
-						return;
+					try {
+						ctx.drawImage(img, x - size / 2, y - size / 2, size, size);
+					} catch (e) {
+						console.warn('nodeCanvasObject: error drawing image', e);
 					}
-					ctx.drawImage(img, x - size / 2, y - size / 2, size, size);
 				})
 				.nodePointerAreaPaint(({ x, y }, color, ctx) => {
 					const size = 12;
