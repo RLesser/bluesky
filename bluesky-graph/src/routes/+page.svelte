@@ -3,6 +3,7 @@
 	import { ANON_AVATAR_URL, ViewManager } from '$lib/ViewManager';
 	import { onMount } from 'svelte';
 	import Search from '$lib/components/Search.svelte';
+	import Tooltip from '$lib/components/Tooltip.svelte';
 
 	let viewManager: null | ViewManager = $state(null);
 	let avatarImages: { handle: string; url: string }[] = $state([]);
@@ -61,26 +62,7 @@
 		</div>
 	</div>
 	<!-- tooltip -->
-	{#if hoverNode}
-		<div
-			class="pointer-events-none absolute -mt-16 rounded bg-white/80 p-2"
-			style="top: {hoverNode.y || 0}px; left: {hoverNode.x}px; transform: translateX(-50%);"
-		>
-			<div class="flex items-center gap-2">
-				<img
-					src={hoverNode.avatar || ANON_AVATAR_URL}
-					alt={hoverNode.handle}
-					class="h-8 w-8 rounded-full"
-					onerror={(e) => {
-						const img = e.target as HTMLImageElement;
-						img.src = ANON_AVATAR_URL;
-						img.onerror = null;
-					}}
-				/>
-				<div>{hoverNode.handle}</div>
-			</div>
-		</div>
-	{/if}
+	<Tooltip {hoverNode} />
 	<!-- avatar images (hidden) -->
 	<div class="invisible h-0 w-0 overflow-hidden">
 		{#each avatarImages as avatarImage (avatarImage.handle)}
