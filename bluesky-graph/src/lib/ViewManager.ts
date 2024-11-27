@@ -14,6 +14,8 @@ export class ViewManager {
   options: VMOptions;
   nodeMap: Map<ProfileNode['id'], ProfileNode> = new Map<ProfileNode['id'], ProfileNode>();
   setAvatarImages: (arg: { handle: string; url: string }[]) => void;
+  private pendingData: { nodes: ProfileNode[]; links: ProfileLink[] } | null = null;
+  private updateScheduled = false;
 
   constructor(
     fg: ForceGraphInstance<ProfileNode, ProfileLink>,
@@ -62,22 +64,52 @@ export class ViewManager {
     this.fg.onNodeClick(onNodeClick);
 
     this.graphWorker.onmessage = (e) => {
-      const { nodes: nodesIn, links: linksIn } = e.data;
-      const { nodes: nodesCurrent, links: linksCurrent } = this.fg.graphData();
-      // dont update if the graph is unchanged
-      if (nodesIn.length === nodesCurrent.length && linksIn.length === linksCurrent.length) return;
-      nodesIn.forEach((node: ProfileNode) => {
-        if (this.nodeMap.has(node.id)) return;
-        this.nodeMap.set(node.id, node);
-      });
-      const nodes = Array.from(this.nodeMap.values());
-      this.setAvatarImages(
-        nodes.map((n) => ({ handle: n.handle, url: n.avatar || ANON_AVATAR_URL }))
-      );
-      this.fg.graphData({ nodes, links: linksIn });
+      this.pendingData = e.data;
+      
+      if (!this.updateScheduled) {
+        this.updateScheduled = true;
+        requestAnimationFrame(() => this.updateGraph());
+      }
     };
     this.graphWorker.postMessage({ type: 'init', bidirectionalOnly: true });
   }
+
+  private updateGraph = () => {
+    this.updateScheduled = false;
+    if (!this.pendingData) return;
+
+    const { nodes: nodesIn, links: linksIn } = this.pendingData;
+    const { nodes: nodesCurrent, links: linksCurrent } = this.fg.graphData();
+    
+    // dont update if the graph is unchanged
+    if (nodesIn.length === nodesCurrent.length && linksIn.length === linksCurrent.length) {
+      this.pendingData = null;
+      return;
+    }
+
+    // Update nodeMap with new nodes
+    nodesIn.forEach((node: ProfileNode) => {
+      if (!this.nodeMap.has(node.id)) {
+        this.nodeMap.set(node.id, node);
+      }
+      });
+
+    // Update graph with all current data
+    this.fg.graphData({
+      nodes: Array.from(this.nodeMap.values()),
+      links: linksIn
+    });
+
+    // Update avatars
+    this.setAvatarImages(
+      Array.from(this.nodeMap.values()).map((n) => ({ 
+        handle: n.handle, 
+        url: n.avatar || ANON_AVATAR_URL 
+      }))
+    );
+
+    this.pendingData = null;
+  };
 
   addFollows = async (
     handle: string,
