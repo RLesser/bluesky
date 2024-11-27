@@ -23,42 +23,64 @@ type Id = ProfileNode['id'];
 export class GraphManager {
   nodeMap;
   linkMap;
-  options: { bidirectionalOnly?: boolean };
+  mutualNodeMap;
+  mutualLinkMap;
+  options: { bidirectionalOnly?: boolean; };
   updateFn: (data: { nodes: ProfileNode[]; links: ProfileLink[] }) => void;
 
   constructor(
     updateFn: (data: { nodes: ProfileNode[]; links: ProfileLink[] }) => void,
-    options: { bidirectionalOnly?: boolean } = {}
+    options: { bidirectionalOnly?: boolean; } = {}
   ) {
     this.nodeMap = new Map<Id, ProfileNode>();
     this.linkMap = new Map<Id, Map<Id, ProfileLink>>();
+    this.mutualNodeMap = new Map<Id, ProfileNode>();
+    this.mutualLinkMap = new Map<Id, Map<Id, ProfileLink>>();
     this.options = options;
     this.updateFn = updateFn;
   }
 
-  updateOptions = (options: { bidirectionalOnly?: boolean }) => {
+  updateOptions = (options: { bidirectionalOnly?: boolean; }) => {
     this.options = options;
     this.updateGraph();
   };
 
   addToGraph = (newNodes: ProfileNode[], newLinks: ProfileLink[] = []) => {
+    // Add nodes to main map
     newNodes.forEach((node) => {
       if (this.nodeMap.has(node.id)) return;
       this.nodeMap.set(node.id, node);
     });
 
+    // Add links to main map and check for mutual connections
     newLinks.forEach((link) => {
       const source = this.getId(link.source);
       const target = this.getId(link.target);
       // Ensure source and target exist
       if (!source || !target) return;
-      const sourceMap = this.linkMap.get(source);
-      // first time seeing this source
+      
+      // Update main linkMap
+      let sourceMap = this.linkMap.get(source);
       if (!sourceMap) {
-        this.linkMap.set(source, new Map().set(target, link));
-      } else if (!sourceMap.has(target)) {
-        // first time seeing this target
-        sourceMap.set(target, link);
+        sourceMap = new Map();
+        this.linkMap.set(source, sourceMap);
+      }
+      sourceMap.set(target, link);
+
+      // Check if this creates a mutual connection
+      if (this.hasLink(target, source)) {
+        // Add to bidirectional maps based on which id is greater
+        const [greater, lesser] = source > target ? [source, target] : [target, source];
+        this.mutualNodeMap.set(greater, this.nodeMap.get(greater)!);
+        this.mutualNodeMap.set(lesser, this.nodeMap.get(lesser)!);
+        
+        let biSourceMap = this.mutualLinkMap.get(greater);
+        if (!biSourceMap) {
+          biSourceMap = new Map();
+          this.mutualLinkMap.set(greater, biSourceMap);
+        }
+        // Always store the link from the perspective of the greater id
+        biSourceMap.set(lesser, source > target ? link : this.linkMap.get(target)!.get(source)!);
       }
     });
 
@@ -66,69 +88,75 @@ export class GraphManager {
   };
 
   removeFromGraph = (nodeIds: Id[], linkIdPairs: [source: Id, target: Id][] = []) => {
-    // Remove nodes from Set and filter nodes array
-    nodeIds.forEach((id) => this.nodeMap.delete(id));
+    // Remove nodes from both maps
+    nodeIds.forEach((id) => {
+      this.nodeMap.delete(id);
+      this.mutualNodeMap.delete(id);
+    });
 
-    // Remove links connected to removed nodes
+    // Remove links connected to removed nodes from both maps
     this.linkMap.forEach((sourceMap, key) => {
       if (nodeIds.includes(key)) {
         this.linkMap.delete(key);
+        this.mutualLinkMap.delete(key);
         return;
       }
 
       nodeIds.forEach((id) => {
         sourceMap.delete(id);
+        const biSourceMap = this.mutualLinkMap.get(key);
+        if (biSourceMap) {
+          biSourceMap.delete(id);
+          if (biSourceMap.size === 0) {
+            this.mutualLinkMap.delete(key);
+          }
+        }
       });
     });
 
-    // Remove specified links
+    // Remove specified links and update bidirectional maps
     linkIdPairs.forEach(([source, target]) => {
       const sourceMap = this.linkMap.get(source);
       if (sourceMap) {
         sourceMap.delete(target);
+        if (sourceMap.size === 0) {
+          this.linkMap.delete(source);
+        }
+      }
+
+      // If this was a mutual connection, remove from bidirectional maps
+      if (source && target && source > target) {
+        const biSourceMap = this.mutualLinkMap.get(source);
+        if (biSourceMap) {
+          biSourceMap.delete(target);
+          if (biSourceMap.size === 0) {
+            this.mutualLinkMap.delete(source);
+            // Check if source node should be removed from bidirectional nodes
+            if (!this.hasAnyMutualConnections(source)) {
+              this.mutualNodeMap.delete(source);
+            }
+          }
+        }
       }
     });
 
     this.updateGraph();
   };
 
-  // Calls the update function with the current graph data
-  private updateGraph = () => {
-    const { nodes, links } = this.fullGraphData();
-    const { bidirectionalOnly } = this.options;
-
-    // Filter graph data if bidirectionalOnly option is set
-    const { nodes: filteredNodes, links: filteredLinks } = bidirectionalOnly
-      ? this.filterBidirectional(nodes, links)
-      : { nodes, links };
-
-    this.updateFn({ nodes: filteredNodes, links: filteredLinks });
+  private hasAnyMutualConnections = (nodeId: Id): boolean => {
+    return this.mutualLinkMap.has(nodeId) || 
+           Array.from(this.mutualLinkMap.values()).some(map => map.has(nodeId));
   };
 
-  // Filters the full graph data to only include bidirectional links and their nodes
-  private filterBidirectional = (
-    nodes: ProfileNode[],
-    links: ProfileLink[]
-  ): { nodes: ProfileNode[]; links: ProfileLink[] } => {
-    const bidirectionalLinks = links.filter((link) => {
-      const isMutual = this.isMutualLink(this.getId(link.source), this.getId(link.target));
-      return isMutual;
-    });
-
-    const bidirectionalNodeIds = new Set(
-      bidirectionalLinks.flatMap((link) => [this.getId(link.source), this.getId(link.target)])
+  // Calls the update function with the current graph data
+  private updateGraph = () => {
+    const nodeMap = this.options.bidirectionalOnly ? this.mutualNodeMap : this.nodeMap;
+    const linkMap = this.options.bidirectionalOnly ? this.mutualLinkMap : this.linkMap;
+    const nodes = Array.from(nodeMap.values());
+    const links = Array.from(linkMap.values()).flatMap((sourceMap) =>
+      Array.from(sourceMap.values())
     );
-
-    const bidirectionalNodes = nodes.filter((node) => {
-      const hasMutualLink = bidirectionalNodeIds.has(node.id || '');
-      return hasMutualLink;
-    });
-
-    // Update graph with filtered data
-    return {
-      nodes: bidirectionalNodes,
-      links: bidirectionalLinks
-    };
+    this.updateFn({ nodes, links });
   };
 
   // Utility method to check if node exists
