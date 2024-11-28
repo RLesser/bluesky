@@ -13,6 +13,8 @@ export class ViewManager {
   bc: BlueskyClient;
   options: VMOptions;
   nodeMap: Map<ProfileNode['id'], ProfileNode> = new Map<ProfileNode['id'], ProfileNode>();
+  private _progress: [finished: number, total: number] = [0, 0];
+  private progressCallback: ((progress: [number, number]) => void) | null = null;
   setAvatarImages: (arg: { handle: string; url: string }[]) => void;
   private pendingData: { nodes: ProfileNode[]; links: ProfileLink[] } | null = null;
   private updateScheduled = false;
@@ -74,13 +76,28 @@ export class ViewManager {
     this.graphWorker.postMessage({ type: 'init', bidirectionalOnly: true });
   }
 
+  setProgressCallback(callback: (progress: [number, number]) => void) {
+    this.progressCallback = callback;
+  }
+
+  private updateProgress(finished: number, total: number) {
+    this._progress = [finished, total];
+    if (this.progressCallback) {
+      this.progressCallback(this._progress);
+    }
+  }
+
+  get progress(): [number, number] {
+    return this._progress;
+  }
+
   private updateGraph = () => {
     this.updateScheduled = false;
     if (!this.pendingData) return;
 
     const { nodes: nodesIn, links: linksIn } = this.pendingData;
     const { nodes: nodesCurrent, links: linksCurrent } = this.fg.graphData();
-    
+
     // dont update if the graph is unchanged
     if (nodesIn.length === nodesCurrent.length && linksIn.length === linksCurrent.length) {
       this.pendingData = null;
@@ -92,7 +109,7 @@ export class ViewManager {
       if (!this.nodeMap.has(node.id)) {
         this.nodeMap.set(node.id, node);
       }
-      });
+    });
 
     // Update graph with all current data
     this.fg.graphData({
@@ -131,11 +148,23 @@ export class ViewManager {
       console.log(`[VM] debug ${debug.path}`);
     }
     const data = await this.bc.getFollows(handle, options.cursor);
+    if (options.fanOut) {
+      // Fan out means we are adding all the follows of the central node
+      const [finished, total] = this.progress;
+      this.updateProgress(finished, total + data.follows.length);
+      // console.log('progress', this.progress);
+    }
+    if (!data.cursor) {
+      // No cursor means we are done with this handle
+      const [finished, total] = this.progress;
+      this.updateProgress(finished + 1, total);
+      // console.log('progress', this.progress);
+    }
     const nodes = data.follows.map((n) => ({ ...n, id: n.handle }));
     const links = data.follows.map((f) => ({ source: handle, target: f.handle }));
     // add nodes to the graph through the worker
     const nodesToGraph = options.initialNode
-      ? [{ ...data.subject, id: data.subject.handle }, ...nodes]
+      ? [{ ...data.subject, id: data.subject.handle, fx: 0, fy: 0 }, ...nodes]
       : nodes;
     this.graphWorker.postMessage({ type: 'addNodes', nodes: nodesToGraph, links });
     if (options.allPages && data.cursor) {

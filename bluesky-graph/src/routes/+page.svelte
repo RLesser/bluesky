@@ -4,6 +4,7 @@
   import { onMount } from 'svelte';
   import Search from '$lib/components/Search.svelte';
   import Tooltip from '$lib/components/Tooltip.svelte';
+  import ProgressBar from '$lib/components/ProgressBar.svelte';
 
   let viewManager: null | ViewManager = $state(null);
   let avatarImages: { handle: string; url: string }[] = $state([]);
@@ -12,6 +13,7 @@
   let h: number;
   let graphWorker: Worker;
   let hoverNode: null | ProfileNode = $state(null);
+  let progress: [number, number] = $state([0, 0]);
 
   const setAvatarImages = (images: { handle: string; url: string }[]) => {
     avatarImages = images;
@@ -27,6 +29,9 @@
     const { ViewManager } = await import('$lib/ViewManager');
     const fg = ForceGraph<ProfileNode, ProfileLink>();
     viewManager = new ViewManager(fg, graphWorker, setAvatarImages, { imageNodes: true });
+    viewManager.setProgressCallback((newProgress) => {
+      progress = newProgress;
+    });
 
     fg.onNodeHover((node) => {
       if (!node) {
@@ -59,10 +64,13 @@
     <div class="pointer-events-auto flex items-center gap-4 bg-white/80 p-4">
       <div class="font-mono text-xl">Bluesky Graph</div>
       <Search {viewManager} />
+      <ProgressBar finished={progress[0]} total={progress[1]} />
     </div>
   </div>
   <!-- tooltip -->
-  <Tooltip {hoverNode} />
+  {#if hoverNode}
+    <Tooltip {hoverNode} />
+  {/if}
   <!-- avatar images (hidden) -->
   <div class="invisible h-0 w-0 overflow-hidden">
     {#each avatarImages as avatarImage (avatarImage.handle)}
