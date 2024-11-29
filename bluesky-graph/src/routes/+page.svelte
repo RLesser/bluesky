@@ -13,7 +13,7 @@
   let h: number;
   let graphWorker: Worker;
   let hoverNode: null | ProfileNode = $state(null);
-  let progress: [number, number] = $state([0, 0]);
+  let progress: [number, number, number] = $state([0, 0, 0]);
 
   const setAvatarImages = (images: { handle: string; url: string }[]) => {
     avatarImages = images;
@@ -59,14 +59,16 @@
 <div class="h-screen w-screen" bind:clientWidth={w} bind:clientHeight={h}>
   <div class="absolute" bind:this={canvas}></div>
   <!-- interface -->
-  <div class="pointer-events-none absolute inset-0">
-    <!-- floating bottom container -->
-    <div class="fixed bottom-5 left-1/2 -translate-x-1/2">
+  <div class="pointer-events-none absolute inset-0 h-full w-full">
+    <!-- floating container -->
+    <div
+      class={`fixed ${progress[1] == 0 ? 'top-1/2 -translate-y-1/2' : 'bottom-5'} left-1/2 -translate-x-1/2`}
+    >
       <div
-        class="pointer-events-auto flex flex-col items-center gap-2 rounded-lg bg-white/90 p-4 shadow-md"
+        class="pointer-events-auto flex flex-col items-center gap-2 rounded-lg bg-blue-100/80 p-4 shadow-md backdrop-blur-sm"
       >
-        <div class="flex items-center gap-4">
-          <div class="font-mono text-xl">Bluesky Graph</div>
+        <div class="flex flex-col items-center gap-4">
+          <div class="font-mono text-xl">Bluesky Local Network</div>
           <Search {viewManager} />
         </div>
         {#if progress[1] > 0}

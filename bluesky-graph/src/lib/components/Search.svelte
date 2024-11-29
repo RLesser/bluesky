@@ -26,7 +26,7 @@
       const response = await fetch(
         `https://api.bsky.app/xrpc/app.bsky.actor.searchActorsTypeahead?q=${encodeURIComponent(
           query
-        )}&limit=10`
+        )}&limit=5`
       );
       const data = await response.json();
       actors = data.actors.map((actor: any) => ({
@@ -74,8 +74,8 @@
   <div class="relative">
     <Combobox.Input
       class="w-[250px] rounded-lg border bg-white px-4 py-2 text-sm placeholder:text-gray-400 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
-      placeholder="Search for users..."
-      aria-label="Search for users"
+      placeholder="Search for user by handle"
+      aria-label="Search for user by handle"
     />
   </div>
 
