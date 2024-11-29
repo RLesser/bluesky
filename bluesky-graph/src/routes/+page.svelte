@@ -60,11 +60,21 @@
   <div class="absolute" bind:this={canvas}></div>
   <!-- interface -->
   <div class="pointer-events-none absolute inset-0">
-    <!-- top bar -->
-    <div class="pointer-events-auto flex items-center gap-4 bg-white/80 p-4">
-      <div class="font-mono text-xl">Bluesky Graph</div>
-      <Search {viewManager} />
-      <ProgressBar finished={progress[0]} total={progress[1]} />
+    <!-- floating bottom container -->
+    <div class="fixed bottom-5 left-1/2 -translate-x-1/2">
+      <div
+        class="pointer-events-auto flex flex-col items-center gap-2 rounded-lg bg-white/90 p-4 shadow-md"
+      >
+        <div class="flex items-center gap-4">
+          <div class="font-mono text-xl">Bluesky Graph</div>
+          <Search {viewManager} />
+        </div>
+        {#if progress[1] > 0}
+          <div class="w-full">
+            <ProgressBar finished={progress[0]} total={progress[1]} />
+          </div>
+        {/if}
+      </div>
     </div>
   </div>
   <!-- tooltip -->

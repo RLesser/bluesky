@@ -145,7 +145,7 @@ export class ViewManager {
       } else {
         debug = options.debug;
       }
-      console.log(`[VM] debug ${debug.path}`);
+      // console.log(`[VM] debug ${debug.path}`);
     }
     const data = await this.bc.getFollows(handle, options.cursor);
     if (options.fanOut) {
