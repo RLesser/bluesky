@@ -64,6 +64,9 @@ export class ViewManager {
       this.addFollows(node.handle, { allPages: true });
     };
     this.fg.onNodeClick(onNodeClick);
+    this.fg.onEngineStop(() => {
+      this.fg.linkVisibility(true);
+    });
 
     this.graphWorker.onmessage = (e) => {
       this.pendingData = e.data;
@@ -111,18 +114,21 @@ export class ViewManager {
       }
     });
 
+    const allNodes = Array.from(this.nodeMap.values());
+
+    if (linksIn.length > 1000) {
+      this.fg.linkVisibility(false);
+    }
+
     // Update graph with all current data
     this.fg.graphData({
-      nodes: Array.from(this.nodeMap.values()),
+      nodes: allNodes,
       links: linksIn
     });
 
     // Update avatars
     this.setAvatarImages(
-      Array.from(this.nodeMap.values()).map((n) => ({ 
-        handle: n.handle, 
-        url: n.avatar || ANON_AVATAR_URL 
-      }))
+      allNodes.map((n) => ({ handle: n.handle, url: n.avatar || ANON_AVATAR_URL }))
     );
 
     this.pendingData = null;
