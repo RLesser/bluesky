@@ -71,7 +71,7 @@
         </div>
         {#if progress[1] > 0}
           <div class="w-full">
-            <ProgressBar finished={progress[0]} total={progress[1]} />
+            <ProgressBar finished={progress[0]} total={progress[1]} requests={progress[2]} />
           </div>
         {/if}
       </div>

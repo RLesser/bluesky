@@ -13,8 +13,8 @@ export class ViewManager {
   bc: BlueskyClient;
   options: VMOptions;
   nodeMap: Map<ProfileNode['id'], ProfileNode> = new Map<ProfileNode['id'], ProfileNode>();
-  private _progress: [finished: number, total: number] = [0, 0];
-  private progressCallback: ((progress: [number, number]) => void) | null = null;
+  private _progress: [finished: number, total: number, requests: number] = [0, 1, 1];
+  private progressCallback: ((progress: [number, number, number]) => void) | null = null;
   setAvatarImages: (arg: { handle: string; url: string }[]) => void;
   private pendingData: { nodes: ProfileNode[]; links: ProfileLink[] } | null = null;
   private updateScheduled = false;
@@ -76,18 +76,18 @@ export class ViewManager {
     this.graphWorker.postMessage({ type: 'init', bidirectionalOnly: true });
   }
 
-  setProgressCallback(callback: (progress: [number, number]) => void) {
+  setProgressCallback(callback: (progress: [number, number, number]) => void) {
     this.progressCallback = callback;
   }
 
-  private updateProgress(finished: number, total: number) {
-    this._progress = [finished, total];
+  private updateProgress(finished: number, total: number, requests: number) {
+    this._progress = [finished, total, requests];
     if (this.progressCallback) {
       this.progressCallback(this._progress);
     }
   }
 
-  get progress(): [number, number] {
+  get progress(): [number, number, number] {
     return this._progress;
   }
 
@@ -148,18 +148,15 @@ export class ViewManager {
       // console.log(`[VM] debug ${debug.path}`);
     }
     const data = await this.bc.getFollows(handle, options.cursor);
+    let [finished, total, requests] = this.progress;
     if (options.fanOut) {
-      // Fan out means we are adding all the follows of the central node
-      const [finished, total] = this.progress;
-      this.updateProgress(finished, total + data.follows.length);
-      // console.log('progress', this.progress);
+      total += data.follows.length;
     }
     if (!data.cursor) {
-      // No cursor means we are done with this handle
-      const [finished, total] = this.progress;
-      this.updateProgress(finished + 1, total);
-      // console.log('progress', this.progress);
+      finished += 1;
     }
+    requests += 1;
+    this.updateProgress(finished, total, requests);
     const nodes = data.follows.map((n) => ({ ...n, id: n.handle }));
     const links = data.follows.map((f) => ({ source: handle, target: f.handle }));
     // add nodes to the graph through the worker

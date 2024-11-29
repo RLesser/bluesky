@@ -1,6 +1,7 @@
 <script lang="ts">
   export let finished: number = 0;
   export let total: number = 0;
+  export let requests: number = 0;
 
   $: progress = total > 0 ? (finished / total) * 100 : 0;
   $: visible = total > 0;
@@ -9,10 +10,10 @@
 {#if visible}
   <div class="w-full">
     <div class="progress-bar">
-      <div class="progress-fill" style="width: {(finished / (total + 1)) * 100}%"></div>
+      <div class="progress-fill" style="width: {(finished / total) * 100}%"></div>
     </div>
     <div class="progress-text">
-      Explored {finished} of {total} nodes
+      Explored {finished} of {total} nodes ({requests} requests)
     </div>
   </div>
 {/if}
